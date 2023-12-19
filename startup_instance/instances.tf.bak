@@ -1,0 +1,56 @@
+# Instances
+
+resource "aws_key_pair" "plu-optimus" {
+  key_name   = "plu-optimus"
+  public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCshbE3gDvHblkKJhNPG2B5cQM2V71ePyRl1m+YCKdYkUZyLMWseEiyTq15L8m28PnWYDQBNNUFALMWcmxp1wmd7yZRbOCAeIvHtng4h5j7JlMembzLXtc/pnbPhBujwULIOQ3AhMgPPhTyE+m3OKhQj24Rg+5flkfwLrzNSxnNl1XWcktbtQvuyA0yDAXk4gZYEu1lFW8g8zLr1zAAFZbAoiXIPjjSh3St+8q9FQrc+9pCuJKqL56YpwHodN0leEz4BGopTtQrmjpDtRSWzQ1HHK6MDTGtFlp/rXRUX5C5PfzLxDQ603m7Q9DN/3EwTWxkisCQYmuzWn783OyxHpZgZNMfI83sOvIcnUebZpEZ3yN2ottlnsVYw4a6c6sM3UghtvSqyP5DR05w81m6OY+qn6EYkK8OaLQG+vqPCTeAu3CH06Jy9rGRW8pGJz1x1CIZ67AcOJQfKMxqIju0sX7D2EDdlbFykAkDb7rCo+kZNPY8VkNVwHRHQu68SkwM2wc= plu@optimus"
+}
+
+resource "aws_instance" "startup_instance" {
+  ami                    = data.aws_ami.amazon_linux_2.id
+  instance_type          = "t2.micro"
+  subnet_id              = var.public_subnet_az1_id
+  vpc_security_group_ids = [var.ssh_security_group_id, var.webserver_security_group_id, var.alb_security_group_id]
+  key_name               = aws_key_pair.plu-optimus.key_name
+
+  user_data = <<EOF
+#!/bin/bash
+yum update -y
+sudo yum install -y httpd httpd-tools mod_ssl
+sudo systemctl enable httpd 
+sudo systemctl start httpd
+sudo amazon-linux-extras enable php7.4
+sudo yum clean metadata
+sudo yum install php php-common php-pear -y
+sudo yum install php-{cgi,curl,mbstring,gd,mysqlnd,gettext,json,xml,fpm,intl,zip} -y
+sudo rpm -Uvh https://dev.mysql.com/get/mysql57-community-release-el7-11.noarch.rpm
+sudo rpm --import https://repo.mysql.com/RPM-GPG-KEY-mysql-2022
+sudo yum install mysql-community-server -y
+sudo systemctl enable mysqld
+sudo systemctl start mysqld
+echo "${var.efs_wordpress_dns_name}:/ /var/www/html nfs4 nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2 0 0" >> /etc/fstab
+mount -a
+sudo wget https://wordpress.org/latest.tar.gz
+sudo tar -xzf latest.tar.gz
+sudo cp -r wordpress/* /var/www/html/
+sudo cp /var/www/html/wp-config-sample.php /var/www/html/wp-config.php
+sudo sed -i 's/database_name_here/applicationdb/g' /var/www/html/wp-config.php
+sudo sed -i 's/username_here/karolina/g' /var/www/html/wp-config.php
+sudo sed -i 's/password_here/PassBar00/g' /var/www/html/wp-config.php
+# sudo sed -i "s/localhost/dev-rds-db.cxpwymbv96um.eu-central-1.rds.amazonaws.com/g" /var/www/html/wp-config.php
+# sudo sed -i "s/localhost/${var.rds_endpoint}/g" /var/www/html/wp-config.php
+sed -i '/\*\* Database settings /i \
+define('\''FORCE_SSL_ADMIN'\'', true); \
+\
+if(isset($_SERVER['\''HTTP_X_FORWARDED_PROTO'\'']) && $_SERVER['\''HTTP_X_FORWARDED_PROTO'\''] === '\''https'\'') { \
+  $_SERVER['\''HTTPS'\''] = '\''1'\'\;' \
+}' /var/www/html/wp-config.php
+sudo chown apache:apache -R /var/www/html
+sudo service httpd restart
+EOF
+
+  tags = {
+    Name = "Startup Instance"
+  }
+}
+
+
