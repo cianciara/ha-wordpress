@@ -1,8 +1,8 @@
 
 resource "aws_route53_record" "blog" {
-  zone_id = data.aws_route53_zone.cianciara_pl.id
-  name    = "blog.cianciara.pl"
-  type    = "A" // or "CNAME", depending on your setup
+  zone_id = data.aws_route53_zone.domain.id
+  name    = var.domain_name
+  type    = "A"
 
   alias {
     name                   = aws_lb.wordpress-alb.dns_name
@@ -13,7 +13,7 @@ resource "aws_route53_record" "blog" {
 
 # request for certificate
 resource "aws_acm_certificate" "cert" {
-  domain_name       = "blog.cianciara.pl"
+  domain_name       = var.domain_name
   validation_method = "DNS"
 
   tags = {
@@ -39,7 +39,7 @@ resource "aws_route53_record" "cert_validation" {
   type    = each.value.type
   records = [each.value.value]
   ttl     = 60
-  zone_id = data.aws_route53_zone.cianciara_pl.id
+  zone_id = data.aws_route53_zone.domain.id
 }
 
 

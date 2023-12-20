@@ -42,3 +42,8 @@ variable "efs_wordpress_dns_name" {
   type        = string
   description = "(Required) efs filesystem DNS name"
 }
+
+variable "domain_name" {
+  type        = string
+  description = "(Required) domain name"
+}

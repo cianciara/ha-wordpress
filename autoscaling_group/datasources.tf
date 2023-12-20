@@ -16,7 +16,7 @@ data "aws_ami" "amazon_linux_2" {
   }
 }
 
-data "aws_route53_zone" "cianciara_pl" {
-  name         = "cianciara.pl"
+data "aws_route53_zone" "domain" { 
+  name         = var.domain_name
   private_zone = false
 }
